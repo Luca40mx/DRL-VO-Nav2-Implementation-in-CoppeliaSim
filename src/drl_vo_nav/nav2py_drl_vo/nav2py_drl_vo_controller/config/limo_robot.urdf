@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<robot name="limo_robot">
+  
+  <!-- Base footprint (ground reference) -->
+  <link name="base_footprint"/>
+  
+  <!-- Base link (robot center) -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.5 0.4 0.2"/>
+      </geometry>
+      <material name="white">
+        <color rgba="1 1 1 0.8"/>
+      </material>
+      <origin xyz="0 0 0.1" rpy="0 0 0"/>
+    </visual>
+  </link>
+  
+  <!-- Laser link -->
+  <link name="laser_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.03" length="0.04"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1 0 0 1"/>
+      </material>
+    </visual>
+  </link>
+  
+  <!-- Joint: base_footprint to base_link -->
+  <joint name="base_footprint_to_base_link" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  
+  <!-- Joint: base_link to laser_link -->
+  <joint name="base_link_to_laser" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser_link"/>
+    <origin xyz="0.15 0 0.15" rpy="0 0 0"/>
+  </joint>
+  
+</robot>

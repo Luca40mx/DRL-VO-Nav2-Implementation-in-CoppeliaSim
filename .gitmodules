@@ -1,6 +1,0 @@
-[submodule "src/drl_vo_nav"]
-	path = src/drl_vo_nav
-	url = ./src/drl_vo_nav
-[submodule "src/limo_ros2"]
-	path = src/limo_ros2
-	url = ./src/limo_ros2
