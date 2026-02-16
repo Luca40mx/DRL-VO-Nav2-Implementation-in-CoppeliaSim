@@ -7,21 +7,6 @@ Prerequisites:
     1. CoppeliaSim running with the Limo robot (Lua script publishing /scan, /odom, TF)
     2. ROS 2 Humble sourced
 
-Usage:
-    Terminal 1 (CoppeliaSim):
-        source /opt/ros/humble/setup.bash
-        cd ~/Downloads/CoppeliaSim_Edu_V4_10_0_rev0_Ubuntu22_04/
-        ./coppeliaSim.sh
-        # Load limo.ttt and press Play
-    
-    Terminal 2 (Nav2 + DRL-VO):
-        source /opt/ros/humble/setup.bash
-        source ~/nav2_ws/install/setup.bash
-        ros2 launch nav2py_drl_vo_controller bringup_drl.launch.py
-
-    Terminal 3 (Optional - set goal via CLI):
-        ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
-            "{pose: {header: {frame_id: 'map'}, pose: {position: {x: 2.0, y: 0.0}}}}"
 """
 
 import os

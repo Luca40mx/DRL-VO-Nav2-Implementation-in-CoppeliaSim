@@ -1,5 +1,5 @@
 """
-MODIFIED: integrated CoppeliaSim obstacles
+Integrated CoppeliaSim obstacles
 Standalone ROS2 node that subscribes to /dynamic_obstacles (std_msgs/String JSON)
 and converts dynamic obstacle data into a 2-channel velocity map compatible with
 the DRL-VO neural network input (flat np.float32 array of shape 12800).
@@ -14,10 +14,10 @@ Topic format expected:
 
 Grid specification (matches original cnn_data_pub.py):
   - 2 channels: vx (first 6400) and vy (last 6400)
-  - 80×80 grid, 0.25 m/bin
+  - 80x80 grid, 0.25 m/bin
   - X axis (rows): [0, 20] m forward from robot
   - Y axis (cols): [-10, +10] m left/right, column index inverted
-  - Robot sits at (x=0, y=0) → row 0, column 40
+  - Robot sits at (x=0, y=0) --> row 0, column 40
 
 Flattening order: np.concatenate([vx_grid.flatten(), vy_grid.flatten()])
   which is equivalent to shape (2, 80, 80) C-order flatten, matching
@@ -34,7 +34,7 @@ from std_msgs.msg import String
 
 
 class DynamicObstacleSubscriber(Node):
-    """ROS2 node that converts CoppeliaSim /dynamic_obstacles into a ped velocity map."""
+    """ROS2 node that converts CoppeliaSim /dynamic_obstacles into a velocity map."""
 
     # ---- Grid constants (must match DRL-VO training / cnn_data_pub.py) -----
     GRID_SIZE: int = 80           # cells per axis
@@ -68,7 +68,7 @@ class DynamicObstacleSubscriber(Node):
         )
 
         self._diag_done = False
-        self._msg_count = 0  # ADDED: message counter for periodic logging
+        self._msg_count = 0
         self.get_logger().info(
             'DynamicObstacleSubscriber initialised — '
             'listening on /dynamic_obstacles')
@@ -88,15 +88,15 @@ class DynamicObstacleSubscriber(Node):
             # One-time diagnostic
             if not self._diag_done and len(obstacles) > 0:
                 self.get_logger().info(
-                    f'✓ First obstacle batch received: {len(obstacles)} obstacles')
+                    f'First obstacle batch received: {len(obstacles)} obstacles')
                 self._diag_done = True
 
-            # ADDED: Periodic logging (every 50th message to avoid spam)
+            # Periodic logging (every 50th message)
             self._msg_count += 1
             if len(obstacles) > 0 and self._msg_count % 50 == 0:
                 sample = obstacles[0]
                 self.get_logger().info(
-                    f'Obstacles: {len(obstacles)} | Sample: '
+                    f'Obstacles: {len(obstacles)},'
                     f'id={sample.get("id")}, '
                     f'pos=({sample.get("x", 0):.2f},{sample.get("y", 0):.2f}), '
                     f'vel=({sample.get("vx", 0):.2f},{sample.get("vy", 0):.2f})')
@@ -112,17 +112,18 @@ class DynamicObstacleSubscriber(Node):
     # --------------------------------------------------------------------- #
     def update_robot_pose(self, pose: Tuple[float, float, float]) -> None:
         """
-        Update the robot pose used for global → robot-frame conversion.
+        Update the robot pose used for global --> robot-frame conversion.
 
         Args:
             pose: (x, y, theta) in the global/map frame.
         """
         with self._lock:
             self._robot_pose = pose
-        # DEBUG: Periodic pose logging (first call + every 50th)
         if not hasattr(self, '_pose_update_count'):
             self._pose_update_count = 0
         self._pose_update_count += 1
+        
+        # Periodic logging (every 50th message)
         if self._pose_update_count == 1 or self._pose_update_count % 50 == 0:
             self.get_logger().info(
                 f'[POSE] Robot at x={pose[0]:.2f}, y={pose[1]:.2f}, '
@@ -130,36 +131,34 @@ class DynamicObstacleSubscriber(Node):
 
     def get_ped_velocity_map(self) -> np.ndarray:
         """
-        Build a 2-channel velocity map on an 80×80 grid.
+        Build a 2-channel velocity map on an 80x80 grid.
 
         Grid coordinate system (matches original cnn_data_pub.py):
-          - X axis → rows (r):  [0, 20] m forward from robot.
-                r = int(floor(x / 0.25)),  clamped from 80 → 79.
-          - Y axis → cols (c):  [-10, +10] m left(+)/right(-), INVERTED index.
-                c = int(floor(-(y - 10) / 0.25)),  clamped from 80 → 79.
-          - Robot is at (x=0, y=0) → r=0, c=40 (bottom-centre of grid).
+          - X axis --> rows (r):  [0, 20] m forward from robot.
+          - Y axis --> cols (c):  [-10, +10] m left(+)/right(-), INVERTED index.
+          - Robot is at (x=0, y=0) --> r=0, c=40 (bottom-centre of grid).
 
         Test cases (robot at origin, facing +X):
-          Obstacle at ( 5,  0)  → r=20, c=40  (centre-front)
-          Obstacle at ( 0,  5)  → r= 0, c=20  (left, at robot)
-          Obstacle at (20,  0)  → r=79, c=40  (far front, clamped 80→79)
-          Obstacle at (10,-10)  → r=40, c=79  (right edge, clamped 80→79)
-          Obstacle at ( 0, 10)  → r= 0, c= 0  (far left edge)
+          Obstacle at ( 5,  0)  --> r=20, c=40  (centre-front)
+          Obstacle at ( 0,  5)  --> r= 0, c=20  (left, at robot)
+          Obstacle at (20,  0)  --> r=79, c=40  (far front, clamped 80-->79)
+          Obstacle at (10,-10)  --> r=40, c=79  (right edge, clamped 80-->79)
+          Obstacle at ( 0, 10)  --> r= 0, c= 0  (far left edge)
 
         Returns:
             Flat np.float32 array of shape (12800,).
             Layout: [vx_channel (6400), vy_channel (6400)].
         """
+        # creates empty grids
         vx_grid = np.zeros((self.GRID_SIZE, self.GRID_SIZE), dtype=np.float32)
         vy_grid = np.zeros((self.GRID_SIZE, self.GRID_SIZE), dtype=np.float32)
 
-        # DEBUG: Call counter for periodic verbose logging (first 5, then every 20th)
+        # Call counter for periodic verbose logging (first 5, then every 20th)
         if not hasattr(self, '_map_call_count'):
             self._map_call_count = 0
         self._map_call_count += 1
         _dbg_verbose = (self._map_call_count <= 5 or self._map_call_count % 20 == 0)
 
-        # ---- snapshot under lock ----------------------------------------
         with self._lock:
             obstacles = list(self._obstacles)
             robot_pose = self._robot_pose
@@ -167,7 +166,6 @@ class DynamicObstacleSubscriber(Node):
         if not obstacles:
             return np.zeros(self.TOTAL_SIZE, dtype=np.float32)
 
-        # DEBUG: Transform verification counters
         _dbg_in_range = 0
         _dbg_out_range = 0
 
@@ -180,7 +178,7 @@ class DynamicObstacleSubscriber(Node):
             except (KeyError, TypeError, ValueError):
                 continue  # skip malformed entries
 
-            # -- coordinate conversion (global → robot frame) -------------
+            # -- coordinate conversion (global --> robot frame) -------------
             if robot_pose is not None:
                 rx, ry, rtheta = robot_pose
                 dx = ox - rx
@@ -200,7 +198,7 @@ class DynamicObstacleSubscriber(Node):
                 rel_x, rel_y = ox, oy
                 vel_x, vel_y = ovx, ovy
 
-            # DEBUG: Log first obstacle's full transform for diagnostics
+            # Log first obstacle's full transform for diagnostics
             if _i == 0 and _dbg_verbose:
                 _in = (self.X_MIN <= rel_x <= self.X_MAX
                        and self.Y_MIN <= rel_y <= self.Y_MAX)
@@ -213,45 +211,45 @@ class DynamicObstacleSubscriber(Node):
             # -- range check (forward-only grid, matching cnn_data_pub.py) -
             if not (self.X_MIN <= rel_x <= self.X_MAX
                     and self.Y_MIN <= rel_y <= self.Y_MAX):
-                _dbg_out_range += 1  # DEBUG
+                _dbg_out_range += 1  
                 continue
-            _dbg_in_range += 1  # DEBUG
+            _dbg_in_range += 1  
 
-            # -- grid indices (matching cnn_data_pub.py lines 69-72) -------
-            r = int(np.floor(rel_x / self.BIN_SIZE))              # row from x
-            c = int(np.floor(-(rel_y - self.Y_MAX) / self.BIN_SIZE))  # col from y (inverted)
+            # -- grid indices -------
+            # ! Converts from robot frame (rel_x, rel_y) to grid indices (r, c).
+            r = int(np.floor(rel_x / self.BIN_SIZE))    # row from x
+            c = int(np.floor(-(rel_y - self.Y_MAX) / self.BIN_SIZE))    # col from y
 
-            # Boundary clamping (matches original: if r==80: r=79)
             if r >= self.GRID_SIZE:
                 r = self.GRID_SIZE - 1
             if c >= self.GRID_SIZE:
                 c = self.GRID_SIZE - 1
 
-            # Assignment, not accumulation (matches original behaviour)
+            # if 2 obstacles fall in the same cell, we keep the latest one, (is it ok? problem for Luca of the future ;) )  
             vx_grid[r, c] = vel_x
             vy_grid[r, c] = vel_y
 
-        # DEBUG: Summary of obstacle mapping
+        # Summary of obstacle mapping
         if _dbg_verbose and len(obstacles) > 0:
             self.get_logger().info(
                 f'[GRID] Mapped {_dbg_in_range}/{len(obstacles)} obstacles to grid, '
                 f'{_dbg_out_range} rejected (outside '
                 f'[{self.X_MIN},{self.X_MAX}]x[{self.Y_MIN},{self.Y_MAX}])')
 
-        # Flatten: first vx channel, then vy channel  (C-order of shape (2,80,80))
+        # Flatten: first vx channel, then vy channel  (shape (2,80,80))
         ped_map = np.concatenate([vx_grid.flatten(), vy_grid.flatten()])
 
-        # ADDED: Log grid statistics when obstacles are present
+        # Log grid statistics when obstacles are present
         non_zero_count = np.count_nonzero(ped_map)
         if non_zero_count > 0:
             self.get_logger().info(
-                f'[GRID] ✓ {non_zero_count}/{self.TOTAL_SIZE} non-zero cells, '
+                f'[GRID] {non_zero_count}/{self.TOTAL_SIZE} non-zero cells, '
                 f'max_vel={np.max(np.abs(ped_map)):.3f} m/s')
         else:
-            # DEBUG: Critical — grid is all zeros despite having obstacles
+            # Grid is all zeros — log a warning if we received obstacles but none mapped to the grid
             if _dbg_verbose:
                 self.get_logger().warn(
-                    f'[GRID] ✗ Grid is ALL ZEROS! '
+                    f'[GRID] Grid is ALL ZEROS! '
                     f'{len(obstacles)} obstacles received, '
                     f'robot_pose={robot_pose is not None}')
 

@@ -7,7 +7,6 @@ import nav2py.interfaces
 import rclpy
 from rclpy.node import Node
 from rclpy.logging import get_logger
-# MODIFIED: removed unused Float32MultiArray import (was for legacy _ped_vel_callback)
 
 from .planner import DrlVoPlanner
 # MODIFIED: integrated CoppeliaSim obstacles
@@ -39,11 +38,9 @@ class nav2py_drl_vo_controller(nav2py.interfaces.nav2py_costmap_controller):
         self.scan_tmp = np.zeros(360)
         self.sub_goal = np.zeros(2)
 
-        # MODIFIED: integrated CoppeliaSim obstacles
-        # Old /ped_vel_map subscription removed (nav2py controller is NOT a rclpy.Node,
-        # so create_subscription() always failed with AttributeError).
-        # Instead, we run a standalone ROS2 node in a background thread.
-        self.ped_vel_map = None  # kept as legacy fallback
+        # Integrated CoppeliaSim obstacles
+        # Old /ped_vel_map subscription removed,
+        self.ped_vel_map = None
         self.robot_pose = None   # (x, y, theta) updated in _data_callback
 
         self.obstacle_subscriber = None
@@ -51,7 +48,7 @@ class nav2py_drl_vo_controller(nav2py.interfaces.nav2py_costmap_controller):
             try:
                 rclpy.init(args=None)
             except RuntimeError:
-                pass  # rclpy already initialised
+                pass
 
             self.obstacle_subscriber = DynamicObstacleSubscriber()
             self.ros_thread = threading.Thread(
@@ -66,28 +63,26 @@ class nav2py_drl_vo_controller(nav2py.interfaces.nav2py_costmap_controller):
 
         self.logger.info("nav2py_drl_vo_controller initialized")
 
-    # MODIFIED: integrated CoppeliaSim obstacles — ROS2 spin in background thread
+    # MODIFIED: Integrated CoppeliaSim obstacles
     def _spin_ros(self):
-        """Spin the DynamicObstacleSubscriber in a daemon thread."""
         try:
-            rclpy.spin(self.obstacle_subscriber)
+            rclpy.spin(self.obstacle_subscriber) # type: ignore
         except Exception as e:
             self.logger.error(f'ROS2 spin error: {e}')
 
-    # ### MODIFICA 3 (LEGACY — kept for reference, no longer the primary path)
     def _ped_vel_callback(self, msg):
         try:
             self.ped_vel_map = np.array(msg.data, dtype=np.float32)
-            # One-time diagnostic: confirm data is flowing
+            # One-time diagnostic: confirm data reception
             if not hasattr(self, '_ped_diag_done'):
                 n_nz = np.count_nonzero(self.ped_vel_map)
                 self.logger.info(
-                    f'✓ ped_vel_map RECEIVED: {len(self.ped_vel_map)} values, '
-                    f'{n_nz} non-zero, max|v|={np.max(np.abs(self.ped_vel_map)):.4f}')
+                    f'ped_vel_map RECEIVED: {len(self.ped_vel_map)} values, '
+                    f'{n_nz} non-zero, max v ={np.max(np.abs(self.ped_vel_map)):.4f}')
                 if n_nz > 0:
                     self._ped_diag_done = True
         except Exception as e:
-            self.logger.error(f"Errore nella lettura della mappa velocità: {e}")
+            self.logger.error(f"Error reading velocity map: {e}")
 
     def _path_callback(self, path_):
         """
@@ -153,20 +148,18 @@ class nav2py_drl_vo_controller(nav2py.interfaces.nav2py_costmap_controller):
                 self.scan_history = scan_data #.tolist()
                 self.logger.info("Received scan history data")
 
-                # MODIFIED: integrated CoppeliaSim obstacles
-                # Use DynamicObstacleSubscriber when available, else legacy fallback
                 if self.obstacle_subscriber is not None:
                     ped_map = self.obstacle_subscriber.get_ped_velocity_map()
-                    # DEBUG: Always log ped_map status
+                    # Always log ped_map status
                     non_zero = np.count_nonzero(ped_map)
                     if non_zero > 0:
                         self.logger.info(
-                            f'[MAIN] ✓ ped_map: {non_zero} non-zero cells')
+                            f'[MAIN] ped_map: {non_zero} non-zero cells')
                     else:
                         self.logger.warn(
-                            f'[MAIN] ✗ ped_map is ALL ZEROS — obstacles not mapped to grid')
+                            f'[MAIN] ped_map is ALL ZEROS, obstacles not mapped to grid')
                 else:
-                    ped_map = self.ped_vel_map  # legacy fallback (may be None → zeros in planner)
+                    ped_map = self.ped_vel_map
 
                 velocity_command = self.planner.compute_velocity_commands(
                     scan_history = self.scan_history,
@@ -232,7 +225,7 @@ class nav2py_drl_vo_controller(nav2py.interfaces.nav2py_costmap_controller):
             y = position.get('y', 0.0)
             self.logger.info(f"Robot position: x={x:.2f}, y={y:.2f}")
 
-            # MODIFIED: integrated CoppeliaSim obstacles
+            # Integrated CoppeliaSim obstacles
             # Extract orientation (quaternion → yaw) for obstacle frame conversion
             orientation = robot_pose.get('orientation', {})
             qx = orientation.get('x', 0.0)
@@ -278,7 +271,7 @@ if __name__ == "__main__":
     nav2py.main(nav2py_drl_vo_controller)
 
 
-####################################################ÀÀ
+####################################################
 # ORIGINAL CODE (before edits):
 
 # import yaml
